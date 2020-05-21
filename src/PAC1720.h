@@ -48,9 +48,9 @@ class PAC1720
     PAC1720(void);
 
     bool begin(void);
-    float GetBusVoltage(Channel Unit);
-    float GetSenseVoltage(Channel Unit);
-    float GetCurrent(Channel Unit, float R);
+    float GetBusVoltage(int Unit);
+    float GetSenseVoltage(int Unit);
+    float GetCurrent(int Unit, float R);
 
   private:
     int ADR;

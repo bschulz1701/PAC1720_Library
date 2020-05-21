@@ -45,18 +45,20 @@ bool PAC1720::begin() //Initalize system
   SetConfig(C2SA, 0b00); //No averaging on CH2 sense measurment 
 }
 
-float PAC1720::GetBusVoltage(Channel Unit)
+float PAC1720::GetBusVoltage(int Unit)
 {
   unsigned int Den = 2048; //Default 
+  unsigned int DenBits = 3; //Default
 
   if(Unit == CH1) {
-    Den = GetConfig(C1RS);
+    DenBits = GetConfig(C1RS);
   }
   if(Unit == CH2) {
-    Den = GetConfig(C2RS);
+    DenBits = GetConfig(C2RS);
   }
 
-  Den = (2 << (Den + 7)); //Calulate deniminator from number of bits
+  // Den = (2 << (Den + 7)); //Calulate deniminator from number of bits
+  Den = pow(2, DenBits + 8); //Calulate deniminator from number of bits
   float FSV = 40.0 - 40.0/float(Den); //Calculate full scale voltage
 
   Wire.beginTransmission(ADR);
@@ -69,15 +71,49 @@ float PAC1720::GetBusVoltage(Channel Unit)
 
   int VSource = ((Data1 << 3) | Data2 >> 5);
   float V = FSV*(float(VSource)/float(Den - 1));
-  return V; //Return value in volts
+  if(Error1 == 0) return V; //Return value in volts
+  else return 0; //Return 0 in error state 
 }
 
-float PAC1720::GetSenseVoltage(Channel Unit)
+float PAC1720::GetSenseVoltage(int Unit)
 {
+  //FSR = 10, 20, 40, 80mV
+  float FSR = 80; //Set to 80 by default
+  unsigned int Den = 2047; //Set to 2047 by default
 
+  if(Unit == CH1) {
+    //FSR = 10, 20, 40, 80mV
+    FSR = (2 << GetConfig(C1SR))*10;
+    Den = 6 + GetConfig(C1CSS);
+  }
+  if(Unit == CH2) {
+    //FSR = 10, 20, 40, 80mV
+    FSR = (2 << GetConfig(C2SR))*10;
+    Den = 6 + GetConfig(C2CSS);
+  }
+
+  if(Den > 11) Den = 11; //FIX! Make cleaner 
+  Den = (2 << Den) - 1;
+  float FSC = FSR; //FSR = mV
+
+  Wire.beginTransmission(ADR);
+  Wire.write(SENSE1 + 2*Unit); //Write to bus voltage reg+offset
+  uint8_t Error = Wire.endTransmission();
+
+  Wire.requestFrom(ADR, 2);
+  int Data1 = Wire.read(); //Read out bytes
+  int Data2 = Wire.read();
+
+  // if((Data2 & 0x0F) == 0x0F) return 0; //Check if low bits (fixed at 0) are set, if so, reading is bad, return 0 //FIX??
+  int16_t VSense = ((Data1 << 4) | Data2 >> 4); //IMPORTANT! Must be int16_t, NOT int! Should be equitable, but if use int, it gets treated as unsigned later. Not very cash money. 
+  
+  if((VSense & 0x800) == 0x800) VSense = VSense | 0xF000; //If sign bit it set, pad left FIX!
+  float I = FSC*float(VSense)/float(Den);
+  if(Error == 0) return I; //Return in mV FIX??
+  else return 0; //If I2C state is not good, return 0
 }
 
-float PAC1720::GetCurrent(Channel Unit, float R)
+float PAC1720::GetCurrent(int Unit, float R)
 {
   //FSR = 10, 20, 40, 80mV
   float FSR = 80; //Set to 80 by default
@@ -100,18 +136,20 @@ float PAC1720::GetCurrent(Channel Unit, float R)
 
   Wire.beginTransmission(ADR);
   Wire.write(SENSE1 + 2*Unit); //Write to bus voltage reg+offset
-  Wire.endTransmission();
+  uint8_t Error = Wire.endTransmission();
 
   Wire.requestFrom(ADR, 2);
   int Data1 = Wire.read(); //Read out bytes
   int Data2 = Wire.read();
 
-  int VSense = ((Data1 << 4) | Data2 >> 4);
-
+  // if((Data2 & 0x0F) == 0x0F) return 0; //Check if low bits (fixed at 0) are set, if so, reading is bad, return 0 //FIX??
+  int16_t VSense = ((Data1 << 4) | Data2 >> 4); //IMPORTANT! Must be int16_t, NOT int! Should be equitable, but if use int, it gets treated as unsigned later. Not very cash money. 
+  
   if((VSense & 0x800) == 0x800) VSense = VSense | 0xF000; //If sign bit it set, pad left FIX!
-
-  float I = FSC*VSense/float(Den);
-  return I*1000.0; //Return in mA FIX??
+  float I = FSC*float(VSense)/float(Den);
+  if(Error == 0) return I*1000.0; //Return in mA FIX??
+  else return 0; //If I2C state is not good, return 0
+  
 }
 
 int PAC1720::GetConfig(Config Value) //Return the value of the given configuration 
