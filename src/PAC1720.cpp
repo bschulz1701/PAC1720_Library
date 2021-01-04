@@ -32,17 +32,19 @@ PAC1720::PAC1720(void)  //Use default address
 bool PAC1720::begin() //Initalize system 
 {
   Wire.begin();  
+  bool Error = false; //Default to no error 
   //Setup device for default operation
-  SetConfig(C1RA, 0x00); //No averaging on CH1 bus measurment 
-  SetConfig(C2RA, 0x00); //No averaging on CH2 bus measurment 
-  SetConfig(C1RS, 0b11); //11 bit sample on CH1 bus
-  SetConfig(C2RS, 0b11); //11 bit sample on CH2 bus
-  SetConfig(C1CSS, 0b101); //11 bit sense, min sample time, on CH1 sense
-  SetConfig(C2CSS, 0b101); //11 bit sense, min sample time, on CH2 sense
-  SetConfig(C1SR, 0b11); //Set for 80mV FSR on CH1
-  SetConfig(C2SR, 0b11); //Set for 80mV FSR on CH2
-  SetConfig(C1SA, 0b00); //No averaging on CH1 sense measurment 
-  SetConfig(C2SA, 0b00); //No averaging on CH2 sense measurment 
+  Error |= SetConfig(C1RA, 0x00); //No averaging on CH1 bus measurment 
+  Error |= SetConfig(C2RA, 0x00); //No averaging on CH2 bus measurment 
+  Error |= SetConfig(C1RS, 0b11); //11 bit sample on CH1 bus
+  Error |= SetConfig(C2RS, 0b11); //11 bit sample on CH2 bus
+  Error |= SetConfig(C1CSS, 0b101); //11 bit sense, min sample time, on CH1 sense
+  Error |= SetConfig(C2CSS, 0b101); //11 bit sense, min sample time, on CH2 sense
+  Error |= SetConfig(C1SR, 0b11); //Set for 80mV FSR on CH1
+  Error |= SetConfig(C2SR, 0b11); //Set for 80mV FSR on CH2
+  Error |= SetConfig(C1SA, 0b00); //No averaging on CH1 sense measurment 
+  Error |= SetConfig(C2SA, 0b00); //No averaging on CH2 sense measurment 
+  return Error; //Return resultant error code, fails if any one of the intializations fails
 }
 
 float PAC1720::GetBusVoltage(int Unit)
@@ -168,7 +170,7 @@ int PAC1720::GetConfig(Config Value) //Return the value of the given configurati
   return (Data >> Offset) & Mask;
 }
 
-int PAC1720::SetConfig(Config Value, uint8_t NewVal) //Set the value of the given configuration 
+bool PAC1720::SetConfig(Config Value, uint8_t NewVal) //Set the value of the given configuration, return pass or fail (0, 1) 
 {
   uint8_t Reg = (Value >> 8); //Pull out register
   uint8_t Offset = (Value & 0x0F); //Grab offset value 
@@ -187,7 +189,8 @@ int PAC1720::SetConfig(Config Value, uint8_t NewVal) //Set the value of the give
   Wire.beginTransmission(ADR);
   Wire.write(Reg);
   Wire.write(WriteVal); //Write adjusted value
-  return Wire.endTransmission(); //Return error condition
+  return Wire.endTransmission() > 0 ? true : false; //Return failure condition 
+  // return Wire.endTransmission(); //Return error condition
 }
 
 

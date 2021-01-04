@@ -55,7 +55,7 @@ class PAC1720
   private:
     int ADR;
     int GetConfig(Config Value);
-    int SetConfig(Config Value, uint8_t NewVal);
+    bool SetConfig(Config Value, uint8_t NewVal);
 
 };
 
